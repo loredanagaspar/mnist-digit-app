@@ -10,9 +10,21 @@ from model.train import DigitCNN
 import psycopg2
 import pandas as pd
 from datetime import datetime
+from urllib.parse import urlparse
 
 st.set_page_config(page_title="Digit Recognizer", layout="centered")
 st.title("🧠 Digit Recognizer")
+
+# === DB CONNECTION HELPER ===
+def get_db_connection():
+    url = urlparse(os.environ["DATABASE_URL"])
+    return psycopg2.connect(
+        dbname=url.path[1:],
+        user=url.username,
+        password=url.password,
+        host=url.hostname,
+        port=url.port
+    )
 
 # === 1. DRAWING CANVAS ===
 st.markdown("### ✍️ Draw a number")
@@ -38,7 +50,6 @@ if canvas.image_data is not None:
     img = img / 255.0
     img = torch.tensor(img).float()
 
-    # Center crop
     threshold = 0.1
     mask = img > threshold
     if mask.any():
@@ -49,14 +60,12 @@ if canvas.image_data is not None:
     else:
         cropped = img
 
-    # Resize + Normalize
     resized = torch.nn.functional.interpolate(
         cropped.unsqueeze(0).unsqueeze(0), size=(28, 28), mode='bilinear', align_corners=False
     )
     normalized = (resized - 0.1307) / 0.3081
     img = normalized
 
-    # === Predict ===
     with torch.no_grad():
         output = model(img)
         pred = torch.argmax(output, dim=1).item()
@@ -66,13 +75,11 @@ if canvas.image_data is not None:
     st.write(f"**Prediction:** {pred}")
     st.write(f"**Confidence:** {conf:.2%}")
 
-    # === 2. TRUE LABEL INPUT + SUBMIT ===
     st.markdown("### ✏️ Enter True Label")
     true_label = st.number_input("True label (0–9)", 0, 9, step=1)
     if st.button("✅ Submit"):
         try:
-            conn = psycopg2.connect(os.environ["DATABASE_URL"]
-            )
+            conn = get_db_connection()
             cur = conn.cursor()
             cur.execute(
                 "INSERT INTO predictions (timestamp, prediction, confidence, true_label) VALUES (%s, %s, %s, %s)",
@@ -86,10 +93,9 @@ if canvas.image_data is not None:
             st.error(f"Database error: {e}")
 
 # === 3. DISPLAY HISTORY ===
-# === 3. DISPLAY HISTORY ===
 st.markdown("### 📜 History")
 try:
-    conn = psycopg2.connect(os.environ["DATABASE_URL"])
+    conn = get_db_connection()
     df = pd.read_sql(
         "SELECT timestamp, prediction, true_label FROM predictions ORDER BY timestamp DESC LIMIT 5",
         conn
@@ -98,4 +104,3 @@ try:
     conn.close()
 except Exception as e:
     st.warning(f"Database not ready or no data yet.\n{e}")
-
