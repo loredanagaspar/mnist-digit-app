@@ -23,27 +23,28 @@ else:
     st.code(os.environ["DATABASE_URL"])
 
 # === DB CONNECTION HELPER ===
+from urllib.parse import urlparse
+import os, psycopg2
+
 def get_db_connection():
     try:
-        url = os.environ.get("DATABASE_URL")
-        if not url:
-            st.error("❌ DATABASE_URL missing")
-            return None
+        raw_url = os.getenv("DATABASE_URL")
+        if not raw_url:
+            raise ValueError("DATABASE_URL not set")
 
-        from urllib.parse import urlparse
-        parsed = urlparse(url)
-        conn = psycopg2.connect(
-            dbname=os.getenv('PGDATABASE'),
-            user=os.getenv('PGUSER'),
-            password=os.getenv('PGPASSWORD'),
-            host=os.getenv('PGHOST'),
-            port=os.getenv('PGPORT'),
-            sslmode="require"
+        parsed = urlparse(raw_url)
+        return psycopg2.connect(
+            dbname=parsed.path[1:],
+            user=parsed.username,
+            password=parsed.password,
+            host=parsed.hostname,
+            port=parsed.port,
+            sslmode="require" if "railway" in raw_url else "disable"
         )
-        return conn
     except Exception as e:
         st.error(f"❌ DB connection failed: {e}")
-        return None
+        return None 
+  
 
 # === Canvas Input ===
 st.markdown("### ✍️ Draw a number")
