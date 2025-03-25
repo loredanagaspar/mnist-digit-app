@@ -71,8 +71,7 @@ if canvas.image_data is not None:
     true_label = st.number_input("True label (0–9)", 0, 9, step=1)
     if st.button("✅ Submit"):
         try:
-            conn = psycopg2.connect(
-                host="db", dbname="postgres", user="postgres", password="postgres"
+            conn = psycopg2.connect(os.environ["postgresql://postgres:kqMmeRcafHXTJfSevKtGUprvGmRWTSFF@postgres.railway.internal:5432/railway"]
             )
             cur = conn.cursor()
             cur.execute(

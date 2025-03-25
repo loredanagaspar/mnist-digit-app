@@ -20,5 +20,7 @@ dist/
 *.egg-info/
 
 # Data/model files
-*.pt
+# *.pt
+!model/model.pt     # allow this specific file
 data/
+
