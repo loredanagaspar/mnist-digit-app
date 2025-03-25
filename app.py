@@ -10,6 +10,7 @@ from model.train import DigitCNN
 import psycopg2
 import pandas as pd
 from datetime import datetime
+from urllib.parse import urlparse
 
 st.set_page_config(page_title="Digit Recognizer", layout="centered")
 st.title("🧠 Digit Recognizer")
@@ -24,6 +25,8 @@ else:
 # === DB CONNECTION HELPER ===
 def get_db_connection():
     try:
+        raw_url = os.environ["DATABASE_URL"]
+        url = urlparse(raw_url)
         conn = psycopg2.connect(
             dbname=os.getenv('PGDATABASE'),
             user=os.getenv('PGUSER'),
