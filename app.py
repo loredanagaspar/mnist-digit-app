@@ -10,12 +10,11 @@ from model.train import DigitCNN
 import psycopg2
 import pandas as pd
 from datetime import datetime
-from urllib.parse import urlparse
 
 st.set_page_config(page_title="Digit Recognizer", layout="centered")
 st.title("🧠 Digit Recognizer")
 
-# === DEBUG DATABASE_URL ===
+# === Check DATABASE_URL ===
 if "DATABASE_URL" not in os.environ:
     st.error("❌ DATABASE_URL is missing from environment variables")
 else:
@@ -30,14 +29,15 @@ def get_db_connection():
             user=os.getenv('PGUSER'),
             password=os.getenv('PGPASSWORD'),
             host=os.getenv('PGHOST'),
-            port=os.getenv('PGPORT')
+            port=os.getenv('PGPORT'),
+            sslmode='require'
         )
         return conn
     except Exception as e:
-        st.error(f"Database connection failed: {e}")
+        st.error(f"❌ DB connection failed: {e}")
         return None
 
-# === 1. DRAWING CANVAS ===
+# === Canvas Input ===
 st.markdown("### ✍️ Draw a number")
 canvas = st_canvas(
     fill_color="#000000",
@@ -55,25 +55,27 @@ model = DigitCNN()
 model.load_state_dict(torch.load("model/model.pt", map_location=torch.device("cpu")))
 model.eval()
 
-# === Ensure table exists ===
-try:
-    conn = get_db_connection()
-    with conn.cursor() as cur:
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS predictions (
-                id SERIAL PRIMARY KEY,
-                timestamp TIMESTAMP DEFAULT NOW(),
-                prediction INT,
-                confidence FLOAT,
-                true_label INT
-            )
-        """)
-    conn.commit()
-    conn.close()
-except Exception as e:
-    st.warning(f"Failed to init DB table: {e}")
+# === Init Table If Needed ===
+conn = get_db_connection()
+if conn:
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS predictions (
+                    id SERIAL PRIMARY KEY,
+                    timestamp TIMESTAMP DEFAULT NOW(),
+                    prediction INT,
+                    confidence FLOAT,
+                    true_label INT
+                )
+            """)
+        conn.commit()
+    except Exception as e:
+        st.warning(f"Failed to init DB table: {e}")
+    finally:
+        conn.close()
 
-# === Prediction logic ===
+# === Prediction ===
 if canvas.image_data is not None:
     img = canvas.image_data[:, :, 0]
     img = 255 - img
@@ -99,37 +101,46 @@ if canvas.image_data is not None:
         pred = torch.argmax(output, dim=1).item()
         conf = torch.max(F.softmax(output, dim=1)).item()
 
-    st.markdown("### \U0001F50D Prediction")
+    st.markdown("### 🔍 Prediction")
     st.write(f"**Prediction:** {pred}")
     st.write(f"**Confidence:** {conf:.2%}")
 
+    # === Log Prediction ===
     st.markdown("### ✏️ Enter True Label")
     true_label = st.number_input("True label (0–9)", 0, 9, step=1)
     if st.button("✅ Submit"):
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                cur.execute(
-                    "INSERT INTO predictions (timestamp, prediction, confidence, true_label) VALUES (%s, %s, %s, %s)",
-                    (datetime.now(), pred, conf, true_label)
-                )
-            conn.commit()
-            conn.close()
-            st.success("Logged to database ✅")
-        except Exception as e:
-            st.error(f"Database error: {e}")
+        conn = get_db_connection()
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO predictions (timestamp, prediction, confidence, true_label)
+                        VALUES (%s, %s, %s, %s)
+                    """, (datetime.now(), pred, conf, true_label))
+                conn.commit()
+                st.success("Logged to database ✅")
+            except Exception as e:
+                st.error(f"Database error: {e}")
+            finally:
+                conn.close()
+        else:
+            st.warning("DB not available")
 
-# === History ===
+# === Show History ===
 st.markdown("### 📜 History")
-try:
-    conn = get_db_connection()
-    df = pd.read_sql("""
-        SELECT timestamp, prediction, true_label
-        FROM predictions
-        ORDER BY timestamp DESC
-        LIMIT 5
-    """, conn)
-    conn.close()
-    st.dataframe(df)
-except Exception as e:
-    st.warning(f"Database not ready or no data yet.\n{e}")
+conn = get_db_connection()
+if conn:
+    try:
+        df = pd.read_sql("""
+            SELECT timestamp, prediction, true_label
+            FROM predictions
+            ORDER BY timestamp DESC
+            LIMIT 5
+        """, conn)
+        st.dataframe(df)
+    except Exception as e:
+        st.warning(f"Error reading history: {e}")
+    finally:
+        conn.close()
+else:
+    st.warning("DB not connected")
