@@ -71,7 +71,7 @@ if canvas.image_data is not None:
     true_label = st.number_input("True label (0–9)", 0, 9, step=1)
     if st.button("✅ Submit"):
         try:
-            conn = psycopg2.connect(os.environ["postgresql://postgres:kqMmeRcafHXTJfSevKtGUprvGmRWTSFF@postgres.railway.internal:5432/railway"]
+            conn = psycopg2.connect(os.environ["DATABASE_URL"]
             )
             cur = conn.cursor()
             cur.execute(
@@ -86,13 +86,16 @@ if canvas.image_data is not None:
             st.error(f"Database error: {e}")
 
 # === 3. DISPLAY HISTORY ===
+# === 3. DISPLAY HISTORY ===
 st.markdown("### 📜 History")
 try:
-    conn = psycopg2.connect(
-        host="db", dbname="postgres", user="postgres", password="postgres"
+    conn = psycopg2.connect(os.environ["DATABASE_URL"])
+    df = pd.read_sql(
+        "SELECT timestamp, prediction, true_label FROM predictions ORDER BY timestamp DESC LIMIT 5",
+        conn
     )
-    df = pd.read_sql("SELECT timestamp, prediction, true_label FROM predictions ORDER BY timestamp DESC LIMIT 5", conn)
     st.dataframe(df)
     conn.close()
-except:
-    st.warning("Database not ready or no data yet.")
+except Exception as e:
+    st.warning(f"Database not ready or no data yet.\n{e}")
+
