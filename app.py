@@ -24,14 +24,18 @@ else:
 
 # === DB CONNECTION HELPER ===
 def get_db_connection():
-    url = urlparse(os.environ["DATABASE_URL"])
-    return psycopg2.connect(
-        dbname=url.path[1:],
-        user=url.username,
-        password=url.password,
-        host=url.hostname,
-        port=url.port
-    )
+    try:
+        conn = psycopg2.connect(
+            dbname=os.getenv('PGDATABASE'),
+            user=os.getenv('PGUSER'),
+            password=os.getenv('PGPASSWORD'),
+            host=os.getenv('PGHOST'),
+            port=os.getenv('PGPORT')
+        )
+        return conn
+    except Exception as e:
+        st.error(f"Database connection failed: {e}")
+        return None
 
 # === 1. DRAWING CANVAS ===
 st.markdown("### ✍️ Draw a number")
