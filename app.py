@@ -15,6 +15,13 @@ from urllib.parse import urlparse
 st.set_page_config(page_title="Digit Recognizer", layout="centered")
 st.title("🧠 Digit Recognizer")
 
+# === DEBUG DATABASE_URL ===
+if "DATABASE_URL" not in os.environ:
+    st.error("❌ DATABASE_URL is missing from environment variables")
+else:
+    st.success("✅ DATABASE_URL is present")
+    st.code(os.environ["DATABASE_URL"])
+
 # === DB CONNECTION HELPER ===
 def get_db_connection():
     url = urlparse(os.environ["DATABASE_URL"])
@@ -43,41 +50,24 @@ canvas = st_canvas(
 model = DigitCNN()
 model.load_state_dict(torch.load("model/model.pt", map_location=torch.device("cpu")))
 model.eval()
+
 # === Ensure table exists ===
-import os
-import psycopg2
-from urllib.parse import urlparse
-import streamlit as st
-
-# Validate and parse DATABASE_URL
 try:
-    raw_url = os.environ.get("DATABASE_URL")
-    if not raw_url:
-        raise EnvironmentError("DATABASE_URL not set")
-
-    url = urlparse(raw_url)
-    if not all([url.scheme, url.hostname, url.path]):
-        raise ValueError("Malformed DATABASE_URL")
-
-    with psycopg2.connect(
-        dbname=url.path[1:], user=url.username, password=url.password,
-        host=url.hostname, port=url.port
-    ) as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS predictions (
-                    id SERIAL PRIMARY KEY,
-                    timestamp TIMESTAMP DEFAULT NOW(),
-                    prediction INT,
-                    confidence FLOAT,
-                    true_label INT
-                )
-            """)
-        conn.commit()
-
+    conn = get_db_connection()
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS predictions (
+                id SERIAL PRIMARY KEY,
+                timestamp TIMESTAMP DEFAULT NOW(),
+                prediction INT,
+                confidence FLOAT,
+                true_label INT
+            )
+        """)
+    conn.commit()
+    conn.close()
 except Exception as e:
     st.warning(f"Failed to init DB table: {e}")
-
 
 # === Prediction logic ===
 if canvas.image_data is not None:
@@ -113,16 +103,14 @@ if canvas.image_data is not None:
     true_label = st.number_input("True label (0–9)", 0, 9, step=1)
     if st.button("✅ Submit"):
         try:
-            with psycopg2.connect(
-                dbname=url.path[1:], user=url.username, password=url.password,
-                host=url.hostname, port=url.port
-            ) as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "INSERT INTO predictions (timestamp, prediction, confidence, true_label) VALUES (%s, %s, %s, %s)",
-                        (datetime.now(), pred, conf, true_label)
-                    )
-                conn.commit()
+            conn = get_db_connection()
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO predictions (timestamp, prediction, confidence, true_label) VALUES (%s, %s, %s, %s)",
+                    (datetime.now(), pred, conf, true_label)
+                )
+            conn.commit()
+            conn.close()
             st.success("Logged to database ✅")
         except Exception as e:
             st.error(f"Database error: {e}")
@@ -130,16 +118,14 @@ if canvas.image_data is not None:
 # === History ===
 st.markdown("### 📜 History")
 try:
-    with psycopg2.connect(
-        dbname=url.path[1:], user=url.username, password=url.password,
-        host=url.hostname, port=url.port
-    ) as conn:
-        df = pd.read_sql("""
-            SELECT timestamp, prediction, true_label
-            FROM predictions
-            ORDER BY timestamp DESC
-            LIMIT 5
-        """, conn)
-        st.dataframe(df)
+    conn = get_db_connection()
+    df = pd.read_sql("""
+        SELECT timestamp, prediction, true_label
+        FROM predictions
+        ORDER BY timestamp DESC
+        LIMIT 5
+    """, conn)
+    conn.close()
+    st.dataframe(df)
 except Exception as e:
     st.warning(f"Database not ready or no data yet.\n{e}")
