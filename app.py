@@ -25,17 +25,20 @@ else:
 # === DB CONNECTION HELPER ===
 def get_db_connection():
     try:
-        raw_url = os.environ["DATABASE_URL"]
-        url = urlparse(raw_url)
-        # Manually add sslmode if not in URL
-        ssl_mode = parse_qs(url.query).get("sslmode", ["require"])[0]
+        url = os.environ.get("DATABASE_URL")
+        if not url:
+            st.error("❌ DATABASE_URL missing")
+            return None
+
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
         conn = psycopg2.connect(
             dbname=os.getenv('PGDATABASE'),
             user=os.getenv('PGUSER'),
             password=os.getenv('PGPASSWORD'),
             host=os.getenv('PGHOST'),
             port=os.getenv('PGPORT'),
-            sslmode=ssl_mode
+            sslmode="require"
         )
         return conn
     except Exception as e:
