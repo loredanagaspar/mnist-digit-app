@@ -1,7 +1,6 @@
 # Use lightweight Python base
 FROM python:3.9-bullseye
 
-
 # Set working directory
 WORKDIR /app
 
@@ -9,6 +8,7 @@ WORKDIR /app
 COPY . .
 
 # Install Python dependencies
+RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Expose Streamlit default port
