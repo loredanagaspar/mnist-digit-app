@@ -10,7 +10,7 @@ from model.train import DigitCNN
 import psycopg2
 import pandas as pd
 from datetime import datetime
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 st.set_page_config(page_title="Digit Recognizer", layout="centered")
 st.title("🧠 Digit Recognizer")
@@ -27,13 +27,15 @@ def get_db_connection():
     try:
         raw_url = os.environ["DATABASE_URL"]
         url = urlparse(raw_url)
+        # Manually add sslmode if not in URL
+        ssl_mode = parse_qs(url.query).get("sslmode", ["require"])[0]
         conn = psycopg2.connect(
             dbname=os.getenv('PGDATABASE'),
             user=os.getenv('PGUSER'),
             password=os.getenv('PGPASSWORD'),
             host=os.getenv('PGHOST'),
             port=os.getenv('PGPORT'),
-            sslmode='require'
+            sslmode=ssl_mode
         )
         return conn
     except Exception as e:
