@@ -79,8 +79,8 @@ if canvas.image_data is not None:
     resized = F.interpolate(
           padded.unsqueeze(0).unsqueeze(0), size=(28, 28), mode='bilinear', align_corners=False)
     img = (resized - 0.1307) / 0.3081
-
-    st.image(img.squeeze().numpy(), caption="Input to model", width=150)
+    display_img = img * 0.3081 + 0.1307
+    st.image(display_img.squeeze().numpy(), caption="Input to model", width=150, clamp=True)
 
     with torch.no_grad():
         output = model(img)
