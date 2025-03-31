@@ -54,26 +54,30 @@ canvas = st_canvas(
 # === Prediction Logic ===
 if canvas.image_data is not None:
     img = canvas.image_data[:, :, 0]
-    img = 255 - img
+    img = 255 - img  # invert
     img = img / 255.0
     img = torch.tensor(img).float()
 
-    resized = F.interpolate(
-        img.unsqueeze(0).unsqueeze(0), size=(28, 28), mode='bilinear', align_corners=False
-    )
+    # Resize directly to 28x28
+    resized = F.interpolate(img.unsqueeze(0).unsqueeze(0), size=(28, 28), mode='bilinear', align_corners=False)
+
+    # Normalize for MNIST
     img = (resized - 0.1307) / 0.3081
 
+    # Display what the model sees
     display_img = img * 0.3081 + 0.1307
     st.image(display_img.squeeze().numpy(), caption="Input to model", width=150, clamp=True)
 
+    # Prediction
     with torch.no_grad():
         output = model(img)
-        pred = torch.argmax(output, dim=1).item()
-        conf = torch.max(F.softmax(output, dim=1)).item()
+        pred = output.argmax(dim=1).item()
+        conf = torch.softmax(output, dim=1).max().item()
 
     st.markdown("### 🔍 Prediction")
     st.write(f"**Prediction:** {pred}")
     st.write(f"**Confidence:** {conf:.2%}")
+
 
       # === Log Prediction ===
     st.markdown("### ✏️ Enter True Label")
