@@ -50,15 +50,6 @@ canvas = st_canvas(
     key="canvas"
 )
 
-# === Utility: Center & Pad cropped digit ===
-def center_pad(img_tensor, size=28):
-    h, w = img_tensor.shape
-    pad_top = (size - h) // 2
-    pad_left = (size - w) // 2
-    pad_bottom = size - h - pad_top
-    pad_right = size - w - pad_left
-    return TF.pad(img_tensor, (pad_left, pad_top, pad_right, pad_bottom), fill=0)
-
 # === Prediction Logic ===
 if canvas.image_data is not None:
     img = canvas.image_data[:, :, 0]
@@ -66,26 +57,11 @@ if canvas.image_data is not None:
     img = img / 255.0
     img = torch.tensor(img).float()
 
-    mask = img > 0.1
-    if mask.any():
-       coords = torch.nonzero(mask)
-       top_left = coords.min(dim=0)[0]
-       bottom_right = coords.max(dim=0)[0]
-        # Add margin
-       margin = 10
-       top = max(top_left[0] - margin, 0)
-       left = max(top_left[1] - margin, 0)
-       bottom = min(bottom_right[0] + margin, img.shape[0] - 1)
-       right = min(bottom_right[1] + margin, img.shape[1] - 1)
-
-       cropped = img[top:bottom+1, left:right+1]
-    else:
-        cropped = img
-
-    padded = center_pad(cropped)
     resized = F.interpolate(
-          padded.unsqueeze(0).unsqueeze(0), size=(28, 28), mode='bilinear', align_corners=False)
+        img.unsqueeze(0).unsqueeze(0), size=(28, 28), mode='bilinear', align_corners=False
+    )
     img = (resized - 0.1307) / 0.3081
+
     display_img = img * 0.3081 + 0.1307
     st.image(display_img.squeeze().numpy(), caption="Input to model", width=150, clamp=True)
 
