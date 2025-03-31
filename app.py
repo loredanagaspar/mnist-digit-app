@@ -1,6 +1,9 @@
 # app.py
 import os
+os.environ["STREAMLIT_FILE_WATCHER_TYPE"] = "none"  # 🔧 Disable torch watcher crash
+
 import sys
+sys.path.append(os.path.abspath("."))
 import streamlit as st
 from streamlit_drawable_canvas import st_canvas
 import numpy as np
