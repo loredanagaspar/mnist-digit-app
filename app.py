@@ -11,10 +11,11 @@ import psycopg2
 import pandas as pd
 from datetime import datetime
 from urllib.parse import urlparse
+import torchvision.transforms.functional as TF
 
 # === Streamlit Setup ===
 st.set_page_config(page_title="Digit Recognizer", layout="centered")
-st.title("🧠 Digit Recognizer")
+st.title("🧠 Digit Recognizer by Loredana Gaspar")
 
 # === DB Connection Helper ===
 def get_db_connection():
@@ -23,7 +24,7 @@ def get_db_connection():
         conn = psycopg2.connect(url, sslmode='require')
         return conn
     except Exception as e:
-        st.error(f"❌ DB connection failed: {e}")
+        st.error(f"DB connection failed: {e}")
         return None
 
 # === Load Model Once ===
@@ -49,6 +50,15 @@ canvas = st_canvas(
     key="canvas"
 )
 
+# === Utility: Center & Pad cropped digit ===
+def center_pad(img_tensor, size=28):
+    h, w = img_tensor.shape
+    pad_top = (size - h) // 2
+    pad_left = (size - w) // 2
+    pad_bottom = size - h - pad_top
+    pad_right = size - w - pad_left
+    return TF.pad(img_tensor, (pad_left, pad_top, pad_right, pad_bottom), fill=0)
+
 # === Prediction Logic ===
 if canvas.image_data is not None:
     img = canvas.image_data[:, :, 0]
@@ -65,10 +75,12 @@ if canvas.image_data is not None:
     else:
         cropped = img
 
+    padded = center_pad(cropped)
     resized = F.interpolate(
-        cropped.unsqueeze(0).unsqueeze(0), size=(28, 28), mode='bilinear', align_corners=False
-    )
+          padded.unsqueeze(0).unsqueeze(0), size=(28, 28), mode='bilinear', align_corners=False)
     img = (resized - 0.1307) / 0.3081
+
+    st.image(img.squeeze().numpy(), caption="Input to model", width=150)
 
     with torch.no_grad():
         output = model(img)
