@@ -12,6 +12,7 @@ import pandas as pd
 from datetime import datetime
 from urllib.parse import urlparse
 import torchvision.transforms.functional as TF
+from pathlib import Path
 
 # === Streamlit Setup ===
 st.set_page_config(page_title="Digit Recognizer", layout="centered")
@@ -74,10 +75,18 @@ if canvas.image_data is not None:
     st.write(f"**Prediction:** {pred}")
     st.write(f"**Confidence:** {conf:.2%}")
 
-    # === Log Prediction ===
+      # === Log Prediction ===
     st.markdown("### ✏️ Enter True Label")
     true_label = st.number_input("True label (0–9)", 0, 9, step=1)
     if st.button("✅ Submit"):
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # Save input tensor and label locally
+        Path("data/logged").mkdir(parents=True, exist_ok=True)
+        torch.save(img, f"data/logged/{timestamp}.pt")
+        with open("data/logged/labels.csv", "a") as f:
+            f.write(f"{timestamp}.pt,{true_label}\n")
+
         conn = get_db_connection()
         if conn:
             try:
@@ -87,7 +96,7 @@ if canvas.image_data is not None:
                         VALUES (%s, %s, %s, %s)
                     """, (datetime.now(), pred, conf, true_label))
                 conn.commit()
-                st.success("Logged to database ✅")
+                st.success("Logged to database and saved input image ✅")
             except Exception as e:
                 st.error(f"Database error: {e}")
             finally:
