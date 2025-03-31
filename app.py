@@ -68,10 +68,17 @@ if canvas.image_data is not None:
 
     mask = img > 0.1
     if mask.any():
-        coords = torch.nonzero(mask)
-        top_left = coords.min(dim=0)[0]
-        bottom_right = coords.max(dim=0)[0]
-        cropped = img[top_left[0]:bottom_right[0]+1, top_left[1]:bottom_right[1]+1]
+       coords = torch.nonzero(mask)
+       top_left = coords.min(dim=0)[0]
+       bottom_right = coords.max(dim=0)[0]
+        # Add margin
+       margin = 10
+       top = max(top_left[0] - margin, 0)
+       left = max(top_left[1] - margin, 0)
+       bottom = min(bottom_right[0] + margin, img.shape[0] - 1)
+       right = min(bottom_right[1] + margin, img.shape[1] - 1)
+
+       cropped = img[top:bottom+1, left:right+1]
     else:
         cropped = img
 
