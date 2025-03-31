@@ -1,6 +1,6 @@
-import sys, os
-sys.path.append(os.path.abspath("."))
-
+# app.py
+import os
+import sys
 import streamlit as st
 from streamlit_drawable_canvas import st_canvas
 import numpy as np
@@ -10,38 +10,31 @@ from model.train import DigitCNN
 import psycopg2
 import pandas as pd
 from datetime import datetime
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse
 
+# === Streamlit Setup ===
 st.set_page_config(page_title="Digit Recognizer", layout="centered")
 st.title("🧠 Digit Recognizer")
 
-# === Check DATABASE_URL ===
-if "DATABASE_URL" not in os.environ:
-    st.error("❌ DATABASE_URL is missing from environment variables")
-else:
-    st.success("✅ DATABASE_URL is present")
-    st.code(os.environ["DATABASE_URL"])
-
-# === DB CONNECTION HELPER ===
-from urllib.parse import urlparse
-import os, psycopg2
-
+# === DB Connection Helper ===
 def get_db_connection():
     try:
-        conn = psycopg2.connect(
-            dbname=os.getenv("PGDATABASE"),
-            user=os.getenv("PGUSER"),
-            password=os.getenv("PGPASSWORD"),
-            host=os.getenv("PGHOST"),
-            port=os.getenv("PGPORT"),
-            sslmode='require'  # Needed for Railway
-        )
+        url = os.getenv("DATABASE_URL")
+        conn = psycopg2.connect(url, sslmode='require')
         return conn
     except Exception as e:
         st.error(f"❌ DB connection failed: {e}")
         return None
 
-  
+# === Load Model Once ===
+@st.cache_resource
+def load_model():
+    model = DigitCNN()
+    model.load_state_dict(torch.load("model/model.pt", map_location=torch.device("cpu")))
+    model.eval()
+    return model
+
+model = load_model()
 
 # === Canvas Input ===
 st.markdown("### ✍️ Draw a number")
@@ -56,32 +49,7 @@ canvas = st_canvas(
     key="canvas"
 )
 
-# === Load Model ===
-model = DigitCNN()
-model.load_state_dict(torch.load("model/model.pt", map_location=torch.device("cpu")))
-model.eval()
-
-# === Init Table If Needed ===
-conn = get_db_connection()
-if conn:
-    try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS predictions (
-                    id SERIAL PRIMARY KEY,
-                    timestamp TIMESTAMP DEFAULT NOW(),
-                    prediction INT,
-                    confidence FLOAT,
-                    true_label INT
-                )
-            """)
-        conn.commit()
-    except Exception as e:
-        st.warning(f"Failed to init DB table: {e}")
-    finally:
-        conn.close()
-
-# === Prediction ===
+# === Prediction Logic ===
 if canvas.image_data is not None:
     img = canvas.image_data[:, :, 0]
     img = 255 - img
@@ -97,7 +65,7 @@ if canvas.image_data is not None:
     else:
         cropped = img
 
-    resized = torch.nn.functional.interpolate(
+    resized = F.interpolate(
         cropped.unsqueeze(0).unsqueeze(0), size=(28, 28), mode='bilinear', align_corners=False
     )
     img = (resized - 0.1307) / 0.3081
